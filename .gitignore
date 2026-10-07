@@ -30,3 +30,6 @@ samconfig.toml
 # Temporary files
 *.log
 *.tmp
+
+payment-key.json
+provider-key.json

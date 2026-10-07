@@ -1,0 +1,146 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  Independent serverless payment processing platform.
+  Deployed and managed using AWS SAM.
+
+Resources:
+
+  PaymentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: SamPayments
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: payment_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: payment_id
+          KeyType: HASH
+
+  ProviderTransactionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: SamPaymentProviderTransactions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: payment_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: payment_id
+          KeyType: HASH
+
+  PaymentDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: SamPaymentDLQ
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 180
+      SqsManagedSseEnabled: true
+
+  PaymentQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: SamPaymentQueue
+      VisibilityTimeout: 185
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PaymentDLQ.Arn
+        maxReceiveCount: 3
+
+  
+  PaymentApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SamPaymentApiLambda
+      CodeUri: ../src/payment-api/
+      Handler: payment_api.lambda_handler
+      Runtime: python3.13
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          PAYMENT_QUEUE_URL: !Ref PaymentQueue
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt PaymentQueue.Arn
+      Events:
+        SubmitPayment:
+          Type: HttpApi
+          Properties:
+            Path: /payments
+            Method: POST
+
+  PaymentProviderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SamPaymentProviderLambda
+      CodeUri: ../src/payment-provider/
+      Handler: payment_provider.lambda_handler
+      Runtime: python3.13
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          PROVIDER_TRANSACTIONS_TABLE: !Ref ProviderTransactionsTable
+          SIMULATE_TIMEOUT_PAYMENT: NONE
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ProviderTransactionsTable.Arn
+
+  PaymentProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SamPaymentProcessorLambda
+      CodeUri: ../src/payment-processor/
+      Handler: payment_processor.lambda_handler
+      Runtime: python3.13
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          PAYMENTS_TABLE: !Ref PaymentsTable
+          PROVIDER_FUNCTION_NAME: !Ref PaymentProviderFunction
+          FORCE_FAILURE_PAYMENT: NONE
+          FAIL_AFTER_PROVIDER: NONE
+          PROCESSING_DELAY_SECONDS: "0"
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt PaymentQueue.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt PaymentsTable.Arn
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !GetAtt PaymentProviderFunction.Arn
+      Events:
+        ProcessPayment:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PaymentQueue.Arn
+            BatchSize: 5
+            MaximumBatchingWindowInSeconds: 5
+            FunctionResponseTypes:
+              - ReportBatchItemFailures

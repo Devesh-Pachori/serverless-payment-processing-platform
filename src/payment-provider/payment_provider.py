@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError
 
 dynamodb = boto3.resource("dynamodb")
 
-TABLE_NAME = "PaymentProviderTransactions"
+TABLE_NAME = os.environ["PROVIDER_TRANSACTIONS_TABLE"]
 table = dynamodb.Table(TABLE_NAME)
 
 
