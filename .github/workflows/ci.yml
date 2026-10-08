@@ -11,6 +11,8 @@ on:
 jobs:
   validate-and-build:
     runs-on: ubuntu-latest
+    env:
+      AWS_DEFAULT_REGION: ap-south-1
 
     steps:
       - name: Checkout repository
