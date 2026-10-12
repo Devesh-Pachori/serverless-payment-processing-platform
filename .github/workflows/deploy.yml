@@ -1,4 +1,3 @@
-```yaml
 name: Serverless Payment Platform CD
 
 on:
@@ -58,4 +57,3 @@ jobs:
             --region ap-south-1 \
             --query 'Stacks[0].StackStatus' \
             --output text
-```
