@@ -1,0 +1,61 @@
+```yaml
+name: Serverless Payment Platform CD
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_DEFAULT_REGION: ap-south-1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Validate SAM template
+        run: sam validate --template-file infrastructure/template.yaml
+
+      - name: Build SAM application
+        run: sam build --template-file infrastructure/template.yaml
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Deploy SAM stack
+        run: |
+          sam deploy \
+            --template-file .aws-sam/build/template.yaml \
+            --stack-name sam-payment-processing-platform \
+            --region ap-south-1 \
+            --capabilities CAPABILITY_IAM \
+            --role-arn arn:aws:iam::470276446812:role/CloudFormationServerlessExecutionRole \
+            --s3-bucket serverless-payment-processing-platform-artifacts-470276446812 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
+
+      - name: Verify CloudFormation stack
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name sam-payment-processing-platform \
+            --region ap-south-1 \
+            --query 'Stacks[0].StackStatus' \
+            --output text
+```
