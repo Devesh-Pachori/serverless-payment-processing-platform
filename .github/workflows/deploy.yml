@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  prepare-deployment:
     runs-on: ubuntu-latest
 
     env:
@@ -38,7 +38,7 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ap-south-1
 
-      - name: Deploy SAM stack
+      - name: Create change set without executing it
         run: |
           sam deploy \
             --template-file .aws-sam/build/template.yaml \
@@ -47,13 +47,13 @@ jobs:
             --capabilities CAPABILITY_IAM \
             --role-arn arn:aws:iam::470276446812:role/CloudFormationServerlessExecutionRole \
             --s3-bucket serverless-payment-processing-platform-artifacts-470276446812 \
-            --no-confirm-changeset \
+            --no-execute-changeset \
             --no-fail-on-empty-changeset
 
-      - name: Verify CloudFormation stack
+      - name: Review instructions
+        if: success()
         run: |
-          aws cloudformation describe-stacks \
-            --stack-name sam-payment-processing-platform \
-            --region ap-south-1 \
-            --query 'Stacks[0].StackStatus' \
-            --output text
+          echo "Change-set preparation completed."
+          echo "Open CloudFormation in ap-south-1."
+          echo "Inspect the change set for sam-payment-processing-platform."
+          echo "Do not execute it until all proposed changes are reviewed."
