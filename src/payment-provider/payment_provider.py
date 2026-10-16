@@ -3,6 +3,7 @@ import time
 import os
 import boto3
 from botocore.exceptions import ClientError
+from decimal import Decimal
 
 
 dynamodb = boto3.resource("dynamodb")
@@ -14,13 +15,13 @@ table = dynamodb.Table(TABLE_NAME)
 def lambda_handler(event, context):
 
     payment_id = event["payment_id"]
-    amount = event["amount"]
+    amount = Decimal(str(event["amount"]))
     currency = event["currency"]
 
     print(json.dumps({
         "event": "PROVIDER_REQUEST",
         "payment_id": payment_id,
-        "amount": amount,
+        "amount": str(amount),
         "currency": currency,
         "request_id": context.aws_request_id
     }))

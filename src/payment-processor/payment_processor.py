@@ -4,6 +4,7 @@ import boto3
 import os
 import uuid
 from botocore.exceptions import ClientError
+from decimal import Decimal
 
 
 dynamodb = boto3.resource("dynamodb")
@@ -26,7 +27,10 @@ def process_record(record):
     if PROCESSING_DELAY_SECONDS > 0:
         time.sleep(PROCESSING_DELAY_SECONDS)
 
-    payment = json.loads(record["body"])
+    payment = json.loads(
+        record["body"],
+        parse_float=Decimal
+    )
     payment_id = payment["payment_id"]
 
     lease_owner = str(uuid.uuid4())
@@ -229,7 +233,7 @@ def process_record(record):
         InvocationType="RequestResponse",
         Payload=json.dumps({
             "payment_id": payment_id,
-            "amount": payment["amount"],
+            "amount": str(payment["amount"]),
             "currency": payment["currency"]
         }).encode()
     )
