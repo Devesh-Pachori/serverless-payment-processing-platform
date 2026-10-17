@@ -33,3 +33,19 @@ samconfig.toml
 
 payment-key.json
 provider-key.json
+
+# Temporary DynamoDB query files
+decimal-payment-key.json
+dynamodb-query-values.json
+
+# Temporary CloudFormation change-set review files
+changeset-review*.json
+
+# Generated deployment artifacts
+api-artifact/
+processor-artifact/
+provider-artifact/
+api-artifact.zip
+processor-artifact.zip
+provider-artifact.zip
+
